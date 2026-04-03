@@ -1,4 +1,4 @@
-name: Build HMA-OSS APK (Debug Full Log)
+name: Build HMA-OSS APK (Final Working)
 
 on:
   push:
@@ -7,15 +7,16 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  # 配置 Gradle 国内镜像，解决依赖拉取失败
-  GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false -Dmaven.repo.local=/tmp/gradle_cache"
+  GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false"
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout code (with submodules)
         uses: actions/checkout@v4
+        with:
+          submodules: recursive # 必须拉取子模块，否则编译必崩
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -24,33 +25,21 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # 安装 NDK（HMA-OSS 包含原生代码，必须配置）
-      - name: Install NDK
-        uses: actions/setup-android-ndk@v1
+      # 用官方标准Android SDK Action配置NDK，替代不存在的setup-android-ndk
+      - name: Set up Android SDK and NDK
+        uses: android-actions/setup-android@v3
         with:
-          ndk-version: '25.1.8937393'
-
-      # 配置 Gradle 国内镜像，解决依赖拉取失败
-      - name: Configure Gradle Mirror
-        run: |
-          mkdir -p ~/.gradle
-          echo "org.gradle.jvmargs=-Xmx4g" >> ~/.gradle/gradle.properties
-          echo "org.gradle.daemon=false" >> ~/.gradle/gradle.properties
-          echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties
-          echo "systemProp.http.proxyHost=mirrors.aliyun.com" >> ~/.gradle/gradle.properties
-          echo "systemProp.http.proxyPort=80" >> ~/.gradle/gradle.properties
-          echo "systemProp.https.proxyHost=mirrors.aliyun.com" >> ~/.gradle/gradle.properties
-          echo "systemProp.https.proxyPort=80" >> ~/.gradle/gradle.properties
+          ndk-version: '25.1.8937393' # 适配HMA-OSS的NDK版本
 
       - name: Grant gradlew execute permission
         run: chmod +x gradlew
 
-      # 完整调试编译，输出所有日志
-      - name: Build Debug APK (Full Log)
-        run: ./gradlew assembleDebug --no-daemon --stacktrace --info --warning-mode all
+      # 纯净编译，先跑通基础构建
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HMA-OSS-Debug-Build
+          name: HMA-OSS-Final-Build
           path: app/build/outputs/apk/debug/*.apk
