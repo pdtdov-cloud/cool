@@ -1,11 +1,10 @@
-name: Build HMA-OSS APK (Forked)
+name: Build HMA-OSS APK (Pure Build)
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
 
-# 解决 Node.js 20 弃用警告
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -23,28 +22,15 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # 用你提供的真实原包名修改，彻底解决 sed 报错
-      - name: Modify package name (HMA-OSS Adapted)
-        run: |
-          OLD_PKG="org.frknkrc44.hma_oss"
-          NEW_PKG="com.cctv.cool" # 这里改成你自己的包名！
-          
-          # 1. 单独修改核心配置文件（优先保证关键位置修改成功）
-          sed -i "s/$OLD_PKG/$NEW_PKG/g" app/build.gradle.kts
-          sed -i "s/$OLD_PKG/$NEW_PKG/g" app/src/main/AndroidManifest.xml
-          
-          # 2. 全局替换源码中的包名引用（修复 find 语法，加容错）
-          find app/src -type f \( -name "*.kt" -o -name "*.java" -o -name "*.xml" \) | xargs sed -i "s/$OLD_PKG/$NEW_PKG/g" || true
-
       - name: Grant gradlew execute permission
         run: chmod +x gradlew
 
-      # 编译 Debug 包，无需签名，可直接安装
-      - name: Build APK
-        run: ./gradlew assembleDebug --no-daemon
+      # 纯净编译，不修改任何内容，先验证项目可编译
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HMA-OSS-APK
+          name: HMA-OSS-Pure-Build
           path: app/build/outputs/apk/debug/*.apk
