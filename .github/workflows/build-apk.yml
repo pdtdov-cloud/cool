@@ -1,0 +1,50 @@
+name: Build HMA APK (Forked)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+# 解决 Node.js 20 弃用警告
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      # 修复 HMA 项目专属的包名修改逻辑
+      - name: Modify package name (HMA Adapted)
+        run: |
+          OLD_PKG="io.github.kr328.clash"
+          NEW_PKG="com.cool.big" # 这里改成你自己的包名！
+          
+          # 1. 修改 build.gradle 核心配置
+          sed -i "s/$OLD_PKG/$NEW_PKG/g" app/build.gradle.kts
+          # 2. 修改 AndroidManifest.xml
+          sed -i "s/$OLD_PKG/$NEW_PKG/g" app/src/main/AndroidManifest.xml
+          # 3. 全局替换源码中的包名引用（兼容 Kotlin/Java）
+          find . -type f \( -name "*.kt" -o -name "*.java" -o -name "*.xml" -o -name "*.gradle" -o -name "*.properties" \) | xargs grep -l "$OLD_PKG" | xargs sed -i "s/$OLD_PKG/$NEW_PKG/g"
+
+      - name: Grant gradlew execute permission
+        run: chmod +x gradlew
+
+      # 适配 HMA 项目的编译命令（部分项目用 assembleDebug 更稳定）
+      - name: Build APK
+        run: ./gradlew assembleDebug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HMA-APK
+          path: app/build/outputs/apk/debug/*.apk
